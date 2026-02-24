@@ -29,8 +29,13 @@ def save_client_folder(data):
         ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Clear old session data
+    context.user_data.clear()
+
     await update.message.reply_text(
-        "👋 Welcome to WorldStarShemz LinkedIn Optimization Services\n\nWhat is your full name?"
+        "🔥 Welcome to WorldStarShemz Profile Builder 🔥\n\n"
+        "Let’s create your professional profile.\n\n"
+        "What is your full name?"
     )
     return NAME
 
