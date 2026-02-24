@@ -1,18 +1,18 @@
 import os
 import csv
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
-TOKEN = os.environ.get("8610962396:AAFmNiyW9shHT34w99RUUI30GOhKyudLdx8")
-ADMIN_ID = 6764405064
+# 🔑 Use environment variable for token (Railway-friendly)
+TOKEN = os.environ.get("TOKEN") or "8610962396:AAFmNiyW9shHT34w99RUUI30GOhKyudLdx8"
 
-NAME, TITLE, SKILLS, EDUCATION, EXPERIENCE, LOCATION, EMAIL, GOALS, PHOTO, PAYMENT = range(10)
+# Conversation states
+NAME, TITLE, SKILLS, EDUCATION, EXPERIENCE, LOCATION, EMAIL, GOALS, PHOTO = range(9)
 
 def save_client_folder(data):
     folder_name = data["name"].replace(" ", "_")
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
-
     csv_path = os.path.join(folder_name, "profile.csv")
     with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
@@ -27,21 +27,21 @@ def save_client_folder(data):
             data.get("email", ""),
             data.get("goals", "")
         ])
+    if "photo_filename" in data:
+        os.rename(data["photo_filename"], os.path.join(folder_name, "photo.jpg"))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👋 Welcome to WorldStarShemz LinkedIn Optimization Services\n\nWhat is your full name?"
-    )
+    await update.message.reply_text("👋 Welcome to WorldStarShemz Bot Services!\n\nWhat is your full name?")
     return NAME
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("Your current job title?")
+    await update.message.reply_text("What is your current job title?")
     return TITLE
 
 async def title(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["title"] = update.message.text
-    await update.message.reply_text("List your top skills:")
+    await update.message.reply_text("List your top skills (comma separated):")
     return SKILLS
 
 async def skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,67 +71,22 @@ async def email(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["goals"] = update.message.text
-    await update.message.reply_text("Send your LinkedIn profile photo.")
+    await update.message.reply_text("Almost done! Please send me your profile photo (as an image).")
     return PHOTO
 
 async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.photo:
         photo_file = await update.message.photo[-1].get_file()
-        filename = f"{context.user_data['name'].replace(' ', '_')}.jpg"
+        name_safe = context.user_data["name"].replace(" ", "_")
+        filename = f"{name_safe}_temp.jpg"
         await photo_file.download_to_drive(filename)
-        context.user_data["photo"] = filename
-
+        context.user_data["photo_filename"] = filename
         save_client_folder(context.user_data)
-
-        # Send full details to admin
-        summary = f"""
-🔥 NEW CLIENT SUBMISSION 🔥
-
-Name: {context.user_data['name']}
-Title: {context.user_data['title']}
-Skills: {context.user_data['skills']}
-Education: {context.user_data['education']}
-Experience: {context.user_data['experience']}
-Location: {context.user_data['location']}
-Email: {context.user_data['email']}
-Goals: {context.user_data['goals']}
-Username: @{update.message.from_user.username}
-"""
-
-        await context.bot.send_message(chat_id=ADMIN_ID, text=summary)
-        await context.bot.send_photo(chat_id=ADMIN_ID, photo=open(filename, "rb"))
-
-        payment_options = [["1️⃣ Send Money"], ["2️⃣ Till Number"], ["3️⃣ Bank Transfer"]]
-        reply_markup = ReplyKeyboardMarkup(payment_options, one_time_keyboard=True)
-
-        await update.message.reply_text(
-            "✅ Details received.\n\n💰 Service Fee: Ksh 2,000\n\nChoose payment option:",
-            reply_markup=reply_markup
-        )
-
-        return PAYMENT
-
-async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-
-    if "Send Money" in text:
-        await update.message.reply_text(
-            "Send Ksh 2,000 to:\n📱 0719369552\nName: WorldStarShemz\n\nAfter payment, paste the M-Pesa confirmation message here."
-        )
-    elif "Till" in text:
-        await update.message.reply_text(
-            "Till Number not yet available.\nPlease use Send Money option:\n📱 0719369552"
-        )
-    elif "Bank" in text:
-        await update.message.reply_text(
-            "Bank details will be provided after contacting admin."
-        )
+        await update.message.reply_text(f"✅ Thank you! Your profile for {context.user_data['name']} is ready.")
+        return ConversationHandler.END
     else:
-        # Forward payment proof to admin
-        await context.bot.send_message(chat_id=ADMIN_ID, text=f"💰 Payment Proof:\n\n{text}")
-        await update.message.reply_text("✅ Payment received. Admin will confirm shortly.")
-
-    return PAYMENT
+        await update.message.reply_text("⚠️ Please send a photo, not text.")
+        return PHOTO
 
 app = ApplicationBuilder().token(TOKEN).build()
 
@@ -147,11 +102,11 @@ conv_handler = ConversationHandler(
         EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, email)],
         GOALS: [MessageHandler(filters.TEXT & ~filters.COMMAND, goals)],
         PHOTO: [MessageHandler(filters.PHOTO, photo)],
-        PAYMENT: [MessageHandler(filters.TEXT, payment)],
     },
     fallbacks=[],
 )
 
 app.add_handler(conv_handler)
 
+print("🤖 Bot is running...")
 app.run_polling()
