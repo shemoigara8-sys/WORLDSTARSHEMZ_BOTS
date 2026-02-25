@@ -154,7 +154,7 @@ conv_handler = ConversationHandler(
         PHOTO: [MessageHandler(filters.PHOTO, photo)],
         PAYMENT: [MessageHandler(filters.TEXT, payment)],
     },
-    fallbacks=[],
+    fallbacks=[CommandHandler("start", start)]
 )
 
 app.add_handler(conv_handler)
