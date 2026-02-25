@@ -4,7 +4,9 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes, ConversationHandler
 
 TOKEN = os.environ.get("TOKEN") or "8610962396:AAFmNiyW9shHT34w99RUUI30GOhKyudLdx8"
-ADMIN_ID =  os.environ.get("ADMIN_ID") or "6764405064"
+import os
+
+ADMIN_ID = int(os.environ.get("6764405064")
 
 NAME, TITLE, SKILLS, EDUCATION, EXPERIENCE, LOCATION, EMAIL, GOALS, PHOTO, PAYMENT = range(10)
 
@@ -29,7 +31,20 @@ def save_client_folder(data):
         ])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Clear old session data
+    user_id = update.effective_user.id
+
+    # If admin starts the bot
+    if user_id == ADMIN_ID:
+        await update.message.reply_text(
+            "👑 ADMIN PANEL\n\n"
+            "You will receive client submissions here.\n\n"
+            "Commands:\n"
+            "/approve <user_id>\n"
+            "/reject <user_id>"
+        )
+        return ConversationHandler.END
+
+    # If normal client
     context.user_data.clear()
 
     await update.message.reply_text(
@@ -157,6 +172,6 @@ conv_handler = ConversationHandler(
     fallbacks=[CommandHandler("start", start)]
 )
 
-app.add_handler(conv_handler)
+app.add_handler(CommandHandler("approve", approve))
 
 app.run_polling()
