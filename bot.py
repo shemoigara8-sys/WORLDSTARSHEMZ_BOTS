@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 TOKEN = os.environ.get("TOKEN") or "8610962396:AAFmNiyW9shHT34w99RUUI30GOhKyudLdx8"
 import os
 
-ADMIN_ID = int(os.environ.get("ADMIN_ID"))
+ADMIN_ID = int(os.environ.get("ADMIN_ID")
 
 NAME, TITLE, SKILLS, EDUCATION, EXPERIENCE, LOCATION, EMAIL, GOALS, PHOTO, PAYMENT = range(10)
 
