@@ -1,244 +1,348 @@
-import os
-import csv
-from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-    ConversationHandler,
-)
+const TelegramBot = require('node-telegram-bot-api');
 
-# ==============================
-# CONFIG
-# ==============================
+const token = "8704352560:AAEVi4SbL9brYht1zLAp0BTnNjaLdVL6b60";
+const adminId = "6764405064";
 
-TOKEN = os.environ.get("TOKEN") or "8610962396:AAFmNiyW9shHT34w99RUUI30GOhKyudLdx8"
+const bot = new TelegramBot(token, { polling: true });
 
-# ⚠️ Replace with your real Telegram numeric ID
-ADMIN_ID = int(os.environ.get("ADMIN_ID") or 6764405064 )
+let users = {};
 
-NAME, TITLE, SKILLS, EDUCATION, EXPERIENCE, LOCATION, EMAIL, GOALS, PHOTO, PAYMENT = range(10)
+function basePrice(type) {
+    switch (type.toLowerCase()) {
+        case "restaurant": return 15000;
+        case "portfolio": return 10000;
+        case "blog": return 8000;
+        case "school": return 20000;
+        case "company website": return 25000;
+        case "e-commerce": return 35000;
+        default: return 12000;
+    }
+}
 
-# ==============================
-# SAVE CLIENT DATA
-# ==============================
+bot.onText(/\/start/, (msg) => {
+    const chatId = msg.chat.id;
 
-def save_client_folder(data):
-    folder_name = data["name"].replace(" ", "_")
+    users[chatId] = { step: 1 };
 
-    if not os.path.exists(folder_name):
-        os.makedirs(folder_name)
+    bot.sendMessage(
+        chatId,
+        "👋 Welcome to WorldStarShemz Web Services!\n\nWhat type of website do you want?",
+        {
+            reply_markup: {
+                keyboard: [
+                    ["Restaurant", "E-commerce"],
+                    ["Portfolio", "School"],
+                    ["Blog", "Company Website"]
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: true
+            }
+        }
+    );
+});
 
-    csv_path = os.path.join(folder_name, "profile.csv")
+bot.on("message", (msg) => {
+    const chatId = msg.chat.id;
 
-    with open(csv_path, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["Name", "Title", "Skills", "Education", "Experience", "Location", "Email", "Goals"])
-        writer.writerow([
-            data.get("name", ""),
-            data.get("title", ""),
-            data.get("skills", ""),
-            data.get("education", ""),
-            data.get("experience", ""),
-            data.get("location", ""),
-            data.get("email", ""),
-            data.get("goals", "")
-        ])
+    if (!users[chatId] || msg.text === "/start") return;
 
-# ==============================
-# START COMMAND
-# ==============================
+    const user = users[chatId];
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    switch (user.step) {
 
-    if user_id == ADMIN_ID:
-        await update.message.reply_text(
-            "👑 ADMIN PANEL\n\n"
-            "Commands:\n"
-            "/approve <user_id>\n"
-            "/reject <user_id>"
-        )
-        return ConversationHandler.END
+        case 1:
+            user.websiteType = msg.text;
+            user.totalPrice = basePrice(msg.text);
+            user.breakdown = "Base price: KES " + user.totalPrice + "\n";
+            user.step++;
+            bot.sendMessage(chatId, "🏢 What is your business name?");
+            break;
 
-    context.user_data.clear()
+        case 2:
+            user.businessName = msg.text;
+            user.step++;
+            bot.sendMessage(chatId, "📄 How many pages do you need? (Enter number only)");
+            break;
 
-    await update.message.reply_text(
-        "🔥 Welcome to WorldStarShemz Profile Builder 🔥\n\n"
-        "What is your full name?"
-    )
-    return NAME
+        case 3:
+            user.pages = parseInt(msg.text);
 
-# ==============================
-# CONVERSATION STEPS
-# ==============================
+            if (isNaN(user.pages)) {
+                bot.sendMessage(chatId, "Please enter a valid number of pages.");
+                return;
+            }
 
-async def name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["name"] = update.message.text
-    await update.message.reply_text("Your current job title?")
-    return TITLE
+            if (user.pages > 5) {
+                let extra = (user.pages - 5) * 2000;
+                user.totalPrice += extra;
+                user.breakdown += "Extra pages cost: KES " + extra + "\n";
+            }
 
-async def title(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["title"] = update.message.text
-    await update.message.reply_text("List your top skills:")
-    return SKILLS
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "⚙️ Type the features you need (example: payment, booking, chatbot).\nIf none, type: none"
+            );
+            break;
 
-async def skills(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["skills"] = update.message.text
-    await update.message.reply_text("Your education background?")
-    return EDUCATION
+        case 4:
+            let featuresText = msg.text.toLowerCase();
 
-async def education(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["education"] = update.message.text
-    await update.message.reply_text("Your work experience?")
-    return EXPERIENCE
+            if (featuresText.includes("payment")) {
+                user.totalPrice += 7000;
+                user.breakdown += "Online payment: KES 7000\n";
+            }
 
-async def experience(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["experience"] = update.message.text
-    await update.message.reply_text("Your location?")
-    return LOCATION
+            if (featuresText.includes("booking")) {
+                user.totalPrice += 5000;
+                user.breakdown += "Booking system: KES 5000\n";
+            }
 
-async def location(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["location"] = update.message.text
-    await update.message.reply_text("Your email address?")
-    return EMAIL
+            if (featuresText.includes("chatbot")) {
+                user.totalPrice += 4000;
+                user.breakdown += "Chatbot: KES 4000\n";
+            }
 
-async def email(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["email"] = update.message.text
-    await update.message.reply_text("What are your career goals?")
-    return GOALS
+            user.features = msg.text;
+            user.step++;
+            bot.sendMessage(chatId, "⏳ In how many days do you need the website ready? (Enter number)");
+            break;
 
-async def goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["goals"] = update.message.text
-    await update.message.reply_text("Send your LinkedIn profile photo.")
-    return PHOTO
+        case 5:
+            let days = parseInt(msg.text);
 
-async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not update.message.photo:
-        await update.message.reply_text("Please send a photo.")
-        return PHOTO
+            if (isNaN(days)) {
+                bot.sendMessage(chatId, "Please enter a valid number of days.");
+                return;
+            }
 
-    photo_file = await update.message.photo[-1].get_file()
-    filename = f"{context.user_data['name'].replace(' ', '_')}.jpg"
-    await photo_file.download_to_drive(filename)
+            if (days < 7) {
+                user.totalPrice += 5000;
+                user.breakdown += "Rush fee: KES 5000\n";
+            }
 
-    context.user_data["photo"] = filename
+            user.deadline = days + " days";
+            user.step++;
+            bot.sendMessage(chatId, "📞 Please provide your phone number or email.");
+            break;
 
-    save_client_folder(context.user_data)
+        case 6:
+            user.contact = msg.text;
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "🎨 Do you have existing brand colors or design preferences?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes, I have a design", "No, surprise me"],
+                            ["Modern & Minimal", "Colorful & Creative"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-    summary = f"""
-🔥 NEW CLIENT SUBMISSION 🔥
+        case 7:
+            user.designPreference = msg.text;
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "📱 Do you need the website to be mobile-friendly?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes, fully responsive", "Basic mobile support", "Not required"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-User ID: {update.effective_user.id}
-Name: {context.user_data['name']}
-Title: {context.user_data['title']}
-Skills: {context.user_data['skills']}
-Education: {context.user_data['education']}
-Experience: {context.user_data['experience']}
-Location: {context.user_data['location']}
-Email: {context.user_data['email']}
-Goals: {context.user_data['goals']}
-"""
+        case 8:
+            user.mobileSupport = msg.text;
+            if (user.mobileSupport.toLowerCase().includes("fully responsive")) {
+                user.totalPrice += 3000;
+                user.breakdown += "Fully responsive design: KES 3000\n";
+            }
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "🔍 Do you need SEO optimization?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes", "No"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-    await context.bot.send_message(chat_id=ADMIN_ID, text=summary)
-    await context.bot.send_photo(chat_id=ADMIN_ID, photo=open(filename, "rb"))
+        case 9:
+            user.seo = msg.text;
+            if (user.seo.toLowerCase() === "yes") {
+                user.totalPrice += 4000;
+                user.breakdown += "SEO Optimization: KES 4000\n";
+            }
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "🖼️ Do you have existing content (text, images, videos)?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes, I have content", "No, need help creating"],
+                            ["Partially ready"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-    payment_options = [["1️⃣ Send Money"], ["2️⃣ Till Number"], ["3️⃣ Bank Transfer"]]
-    reply_markup = ReplyKeyboardMarkup(payment_options, one_time_keyboard=True)
+        case 10:
+            user.contentStatus = msg.text;
+            if (user.contentStatus.toLowerCase().includes("help")) {
+                user.totalPrice += 5000;
+                user.breakdown += "Content creation: KES 5000\n";
+            }
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "🛡️ Do you need SSL certificate and domain registration?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes, both", "Only SSL", "Only domain", "I have both"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-    await update.message.reply_text(
-        "✅ Details received.\n\n💰 Service Fee: Ksh 2,000\n\nChoose payment option:",
-        reply_markup=reply_markup
-    )
+        case 11:
+            user.sslDomain = msg.text;
+            if (user.sslDomain.toLowerCase().includes("yes") || user.sslDomain.toLowerCase().includes("ssl")) {
+                user.totalPrice += 3000;
+                user.breakdown += "SSL & Domain setup: KES 3000\n";
+            }
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "📊 Do you need analytics and reporting?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes", "No"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-    return PAYMENT
+        case 12:
+            user.analytics = msg.text;
+            if (user.analytics.toLowerCase() === "yes") {
+                user.totalPrice += 2000;
+                user.breakdown += "Analytics & Reporting: KES 2000\n";
+            }
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "🔧 Will you need ongoing maintenance and support after launch?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Yes, monthly support", "One-time only", "Not sure yet"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-# ==============================
-# PAYMENT STEP
-# ==============================
+        case 13:
+            user.maintenance = msg.text;
+            user.step++;
+            bot.sendMessage(
+                chatId,
+                "💼 Who should we contact for approval and updates?",
+                {
+                    reply_markup: {
+                        keyboard: [
+                            ["Me (owner)", "Project manager", "Multiple contacts"]
+                        ],
+                        resize_keyboard: true,
+                        one_time_keyboard: true
+                    }
+                }
+            );
+            break;
 
-async def payment(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
+        case 14:
+            user.contactPerson = msg.text;
+            user.step++;
+            bot.sendMessage(chatId, "📝 Any additional notes or special requirements? (Type 'none' if not applicable)");
+            break;
 
-    if "Send Money" in text:
-        await update.message.reply_text(
-            "Send Ksh 2,000 to:\n📱 0719369552\nName: WorldStarShemz\n\nAfter payment, paste confirmation message."
-        )
-        return PAYMENT
+        case 15:
+            user.additionalNotes = msg.text;
 
-    if "Till" in text:
-        await update.message.reply_text("Till number not available. Use Send Money option.")
-        return PAYMENT
+            // Send detailed order to admin
+            bot.sendMessage(
+                adminId,
+                "🔥 NEW SMART WEBSITE ORDER 🔥\n\n" +
+                "👤 CLIENT DETAILS:\n" +
+                "Business: " + user.businessName + "\n" +
+                "Contact: " + user.contact + "\n" +
+                "Contact Person: " + user.contactPerson + "\n\n" +
+                "🌐 PROJECT DETAILS:\n" +
+                "Type: " + user.websiteType + "\n" +
+                "Pages: " + user.pages + "\n" +
+                "Features: " + user.features + "\n" +
+                "Deadline: " + user.deadline + "\n\n" +
+                "🎨 DESIGN & TECH:\n" +
+                "Design Preference: " + user.designPreference + "\n" +
+                "Mobile Support: " + user.mobileSupport + "\n" +
+                "SEO: " + user.seo + "\n" +
+                "Content Status: " + user.contentStatus + "\n" +
+                "SSL/Domain: " + user.sslDomain + "\n" +
+                "Analytics: " + user.analytics + "\n\n" +
+                "🛠️ SUPPORT:\n" +
+                "Maintenance: " + user.maintenance + "\n" +
+                "Notes: " + user.additionalNotes + "\n\n" +
+                "💰 PRICING:\n" +
+                user.breakdown +
+                "------------------------\n" +
+                "💰 TOTAL: KES " + user.totalPrice
+            );
 
-    if "Bank" in text:
-        await update.message.reply_text("Bank details will be provided by admin.")
-        return PAYMENT
+            // Send breakdown to client
+            bot.sendMessage(
+                chatId,
+                "📊 PRICE BREAKDOWN\n\n" +
+                user.breakdown +
+                "------------------------\n" +
+                "💰 TOTAL: KES " + user.totalPrice + "\n\n" +
+                "Payment will be made AFTER completion.\n\n" +
+                "📲 Send payment to: 0719369552\n\n" +
+                "We will contact you shortly 🚀"
+            );
 
-    # Assume payment proof
-    await context.bot.send_message(chat_id=ADMIN_ID, text=f"💰 Payment Proof:\n\n{text}")
-    await update.message.reply_text("✅ Payment received. Admin will confirm shortly.")
-
-    return PAYMENT
-
-# ==============================
-# APPROVE / REJECT COMMANDS
-# ==============================
-
-async def approve(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Not authorized.")
-        return
-
-    if not context.args:
-        await update.message.reply_text("Usage: /approve <user_id>")
-        return
-
-    user_id = int(context.args[0])
-
-    await context.bot.send_message(chat_id=user_id, text="🎉 Your profile has been approved!")
-    await update.message.reply_text("✅ User approved.")
-
-async def reject(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        await update.message.reply_text("❌ Not authorized.")
-        return
-
-    if not context.args:
-        await update.message.reply_text("Usage: /reject <user_id>")
-        return
-
-    user_id = int(context.args[0])
-
-    await context.bot.send_message(chat_id=user_id, text="❌ Your submission was rejected. Contact admin.")
-    await update.message.reply_text("🚫 User rejected.")
-
-# ==============================
-# RUN BOT
-# ==============================
-
-app = ApplicationBuilder().token(TOKEN).build()
-
-conv_handler = ConversationHandler(
-    entry_points=[CommandHandler("start", start)],
-    states={
-        NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, name)],
-        TITLE: [MessageHandler(filters.TEXT & ~filters.COMMAND, title)],
-        SKILLS: [MessageHandler(filters.TEXT & ~filters.COMMAND, skills)],
-        EDUCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, education)],
-        EXPERIENCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, experience)],
-        LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, location)],
-        EMAIL: [MessageHandler(filters.TEXT & ~filters.COMMAND, email)],
-        GOALS: [MessageHandler(filters.TEXT & ~filters.COMMAND, goals)],
-        PHOTO: [MessageHandler(filters.PHOTO, photo)],
-        PAYMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, payment)],
-    },
-    fallbacks=[CommandHandler("start", start)],
-)
-
-app.add_handler(conv_handler)
-app.add_handler(CommandHandler("approve", approve))
-app.add_handler(CommandHandler("reject", reject))
-
-app.run_polling()
+            delete users[chatId];
+            break;
+    }
+});
